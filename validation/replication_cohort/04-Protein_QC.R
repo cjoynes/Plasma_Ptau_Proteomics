@@ -668,7 +668,8 @@ p1 <- ggplot(c, aes(x = .data[[plot_col]])) +
   ggtitle("All proteins") +
   theme_classic() +
   xlim(-xmax, xmax) +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_y_continuous(expand=expansion(c(0, 0.05)))
 
 # calculate genomic inflation
 lambda.c <- median(qchisq(c$pval, 1, lower.tail = FALSE)) / qchisq(0.5, 1)
@@ -723,7 +724,8 @@ p2 <- ggplot(dt, aes(x, y)) +
   theme(
     plot.title = element_text(hjust = 0.5, face = "bold", size = 20),
     legend.position.inside = c(0.9, 0.5)
-  )
+  ) + 
+  scale_y_continuous(expand=expansion(c(0, 0.05)))
 
 # write plots
 ggsave(
