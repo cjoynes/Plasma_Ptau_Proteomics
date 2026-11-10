@@ -10,10 +10,13 @@ from the full proteomic panel?
 
 1. **Proteomics matrix** (CSV) — one row per sample, first column
    `SampleID`. By default, remaining columns are expected to be
-   **SomaLogic probe IDs** (e.g. `CRYBB2.10000.28.3`), matching the
-   bundled `prot_names.txt`/`2024-08-30_Somalogic_reference_Key.txt`. If
-   your proteomics is from a different, already-symbol-named platform,
-   set `map_probes_to_symbols: FALSE` in `01-WSSmod_prep.Rmd`'s params.
+   **SomaLogic probe IDs**, either probe names (e.g. `CRYBB2.10000.28.3`)
+   or SeqIds (e.g. `seq.10000.28`), matching the bundled
+   `soma_probe_to_symbol_key.csv`. Supply protein levels on their usual
+   (normalized RFU) scale, not log-transformed or scaled; `01-WSSmod_prep.Rmd`
+   rank-normalizes them before scoring. If your proteomics is from a
+   different, already-symbol-named platform, set
+   `map_probes_to_symbols: FALSE` in `01-WSSmod_prep.Rmd`'s params.
 2. **Biomarker data** (CSV) — one row per sample: `SampleID`, `Age`,
    `Gender` (1 = male, 0 = not male), and the 8 raw core plasma
    biomarkers (`PlasmaPTau181`, `PlasmaAB142P`, `PlasmaAB140P`,
@@ -31,14 +34,15 @@ These are platform/curation constants, not something you generate:
 - `2024-08-30_Somalogic_reference_Key.txt` — SomaLogic probe → gene
   annotation key (`Key_2` matches your proteomics matrix's probe IDs).
 - `prot_names.txt` — the full SomaScan panel's probe IDs.
-- `soma_probe_to_symbol_key.csv` — a derived `(ix, Symbol)` lookup used
-  by `01-WSSmod_prep.Rmd` to build a gene-symbol matrix for
-  `WSSmod::calculate_WSS()` from your probe-named proteomics. Built from
-  `WSS_prot/Merged.M1/dataProt_SS-205063.baseline_WSS.Merged.M1.csv`'s
-  `(ix, Symbol, padj)` columns: for a gene symbol measured by more than
-  one probe, only the lowest-`padj` probe is kept; multi-gene "complex"
-  probes (e.g. `IL12B.IL23A.10365.132.3`) are duplicated across each
-  constituent gene's column rather than averaged.
+- `soma_probe_to_symbol_key.csv` — a derived `(ix, seq, Symbol)` lookup
+  used by `01-WSSmod_prep.Rmd` to build a gene-symbol matrix for
+  `WSSmod::calculate_WSS()` from your proteomics, whether it is named by
+  probe (`ix`, e.g. `CRYBB2.10000.28.3`) or by SeqId (`seq`, e.g.
+  `seq.10000.28`). Built by `00-make_probe_key.R` from the probe list
+  used to construct the WSS modules, so the module scores reproduce the
+  original ones: one probe per gene symbol; multi-gene "complex" probes
+  (e.g. `IL12B.IL23A.10365.132.3`) are duplicated across each constituent
+  gene's column rather than averaged.
 - `WSS_names.txt` / `WSS_names_pred.txt` — the subset of 45 WSS 
   modules preserved in the GNPC (actual / `.pred` predicted) 
   tested in the "clin predictions" section below.
@@ -63,7 +67,9 @@ You'll also need `data.table`, `optparse`, `tools`, `stringr`, `tictoc`,
 1. **`01-WSSmod_prep.Rmd`** — edit the `params` block for your file
    paths, then knit/run. Computes actual WSS scores
    (`WSSmod::calculate_WSS`, after mapping your probe-level proteomics to
-   gene symbols) and predicted WSS scores
+   gene symbols and rank-normalizing each protein; checked on the internal
+   follow-up cohort, where it reproduces the original module scores at
+   median r = 0.99) and predicted WSS scores
    (`WSSmod::normalize_wss_biomarkers` + `WSSmod::predict_WSS`), merges
    everything, and writes the **raw, un-QC'd** intermediate file
    `dataProt_replication.csv.gz`.

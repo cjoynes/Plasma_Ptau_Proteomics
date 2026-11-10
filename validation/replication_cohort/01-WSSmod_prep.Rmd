@@ -7,6 +7,7 @@ params:
   proteomics_path: "your_proteomics_matrix.csv"
   map_probes_to_symbols: TRUE
   probe_symbol_key_path: "soma_probe_to_symbol_key.csv"
+  normalize_proteomics: TRUE
   biomarker_path: "your_biomarker_data.csv"
   clinical_path: "your_clinical_data.csv"
   output_dir: "."
@@ -48,13 +49,15 @@ Edit the `params` block at the top of this Rmd (or pass them via
 
 - **`proteomics_path`** — CSV, one row per sample. First column
   `SampleID`. Remaining columns are protein levels. By default these are
-  expected to be **SomaLogic probe IDs** (e.g. `CRYBB2.10000.28.3`,
-  matching the bundled `prot_names.txt`/`2024-08-30_Somalogic_reference_Key.txt`
-  panel) — if your panel doesn't cover every probe in `prot_names.txt`
-  that's fine, but any collaborator probe ID not found there is a data
-  problem worth checking. If your proteomics matrix is already
-  gene-symbol-named (e.g. a non-SomaScan platform), set
-  `map_probes_to_symbols: FALSE` in `params`.
+  expected to be **SomaLogic probe IDs**, either as probe names
+  (e.g. `CRYBB2.10000.28.3`) or as SeqIds (e.g. `seq.10000.28`), matching
+  the bundled `soma_probe_to_symbol_key.csv` — if your panel doesn't cover
+  every probe in the key that's fine, but any collaborator probe ID not
+  found there is a data problem worth checking. If your proteomics matrix
+  is already gene-symbol-named (e.g. a non-SomaScan platform), set
+  `map_probes_to_symbols: FALSE` in `params`. Supply the protein levels on
+  their usual (normalized RFU) scale, not log-transformed or scaled; the
+  notebook rank-normalizes them before scoring (see Step 1).
 - **`biomarker_path`** — CSV, one row per sample. Columns: `SampleID`,
   `Age`, `Gender` (1 = male, 0 = not male), and the 8 **raw** (not
   normalized) core plasma biomarkers: `PlasmaPTau181`, `PlasmaAB142P`,
@@ -76,16 +79,23 @@ this folder** — you don't need to generate or edit them:
 suppressPackageStartupMessages({
   library(WSSmod)
   library(data.table)
+  library(RNOmni)
 })
 ```
 
-## Step 1: Load proteomics, optionally map probes to gene symbols
+## Step 1: Load proteomics, map probes to gene symbols, normalize
 
 `WSSmod::calculate_WSS()` needs a gene-symbol-named expression matrix,
 but your raw proteomics is (by default) SomaLogic-probe-named. This step
 builds a symbol-named matrix for `calculate_WSS()` while keeping the
 original probe-level table intact for the full-panel association tests
 in `00-commands.sh`.
+
+`calculate_WSS()` does no scaling of its own, and the bundled module
+weights were built on a rank-based inverse normal (INT) scale. Each protein
+is therefore rank-normalized across your samples
+(`normalize_proteomics: TRUE`, the default). Scoring raw RFU instead lets
+the highest-abundance proteins dominate every module score.
 
 ```{r load_proteomics}
 prot_dt <- fread(params$proteomics_path)
@@ -94,7 +104,10 @@ sample_ids <- prot_dt$SampleID
 if (isTRUE(params$map_probes_to_symbols)) {
   key <- fread(params$probe_symbol_key_path)
 
-  missing_probes <- setdiff(key$ix, names(prot_dt))
+  # columns are either probe names (CRYBB2.10000.28.3) or SeqIds (seq.10000.28)
+  id_col <- if (any(startsWith(names(prot_dt), "seq."))) "seq" else "ix"
+
+  missing_probes <- setdiff(key[[id_col]], names(prot_dt))
   if (length(missing_probes) > 0) {
     cat(sprintf(
       "Note: %d of %d key probes not found in your proteomics matrix (ok if your panel doesn't cover them)\n",
@@ -105,14 +118,21 @@ if (isTRUE(params$map_probes_to_symbols)) {
   # join each probe's values onto every symbol it resolves to -- this
   # naturally duplicates a multi-gene "complex" probe's values across
   # each constituent gene's column
-  present_key <- key[ix %in% names(prot_dt)]
-  probe_cols <- present_key$ix
+  present_key <- key[get(id_col) %in% names(prot_dt)]
+  stopifnot("no key probes found in the proteomics matrix" = nrow(present_key) > 0)
+  probe_cols <- present_key[[id_col]]
   probe_matrix <- as.matrix(prot_dt[, ..probe_cols])
   colnames(probe_matrix) <- present_key$Symbol
   rownames(probe_matrix) <- sample_ids
   expr_matrix <- probe_matrix
 } else {
   expr_matrix <- as.matrix(prot_dt[, -"SampleID"])
+  rownames(expr_matrix) <- sample_ids
+}
+
+if (isTRUE(params$normalize_proteomics)) {
+  # rank-based inverse normal transform of each protein across samples
+  expr_matrix <- apply(expr_matrix, 2, RNOmni::RankNorm)
   rownames(expr_matrix) <- sample_ids
 }
 ```

@@ -347,13 +347,31 @@ cv_model_pls$results %>%
 ##      1 0.9399164 0.133929 0.7375119 0.09900189 0.07164967 0.0701038
 # plot cross-validated RMSE
 # ggplot(cv_model_pls)
-p1 <- vip::vip(cv_model, geom="point", num_features = 50, bar = FALSE) + 
+#' Variable importance dot plot
+#'
+#' Replacement for `vip::vip(geom = "point")`: vip >= 0.5 draws with base
+#' graphics instead of returning a ggplot, so build the plot from `vip::vi()`,
+#' whose values are identical across vip versions.
+#'
+#' @param object A fitted model supported by `vip::vi()`.
+#' @param num_features Number of top features to show.
+#' @return A ggplot with the most important feature at the top.
+vip_plot <- function(object, num_features = 50) {
+  vip::vi(object) %>%
+    slice_max(Importance, n = num_features, with_ties = FALSE) %>%
+    mutate(Variable = reorder(Variable, Importance)) %>%
+    ggplot(aes(x = Importance, y = Variable)) +
+    geom_point() +
+    ylab(NULL)
+}
+
+p1 <- vip_plot(cv_model) + 
   ggtitle("GLM - 5-fold Cross Validation") + 
-  geom_vline(xintercept = min(25, floor(length(cv_model$coefnames) / 2)))
-p2 <- vip::vip(cv_model_pls, geom="point", num_features = 50, bar = FALSE) +
+  geom_hline(yintercept = min(25, floor(length(cv_model$coefnames) / 2)))
+p2 <- vip_plot(cv_model_pls) +
   ggtitle(paste("Partial Least Squares - Best Fit ", 
                 cv_model_pls$bestTune$ncomp, "PCs")) + 
-  geom_vline(xintercept = min(25, floor(length(cv_model_pls$coefnames) / 2)))
+  geom_hline(yintercept = min(25, floor(length(cv_model_pls$coefnames) / 2)))
 # p5 <- vip::vip(cv_model_pls, num_features = 55, bar = FALSE) +
   # ggtitle(paste("Partial Least Squares - Best Fit ", npcs, "PCs"))
 
@@ -432,12 +450,12 @@ rf_permutation <- ranger(
   verbose = FALSE,
 )
 
-p3 <- vip::vip(rf_impurity, geom="point", num_features = 50, bar = FALSE) + 
+p3 <- vip_plot(rf_impurity) + 
   ggtitle("Random Forest - Impurity") + 
-  geom_vline(xintercept = min(25, floor(n_features/2)))
-p4 <- vip::vip(rf_permutation, geom="point", num_features = 50, bar = FALSE) +
+  geom_hline(yintercept = min(25, floor(n_features/2)))
+p4 <- vip_plot(rf_permutation) +
   ggtitle("Random Forest - Permutation") + 
-  geom_vline(xintercept = min(25, floor(n_features/2)))
+  geom_hline(yintercept = min(25, floor(n_features/2)))
 
 # gridExtra::grid.arrange(p1, p2, nrow = 1)
 

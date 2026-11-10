@@ -47,6 +47,24 @@ library(auditor)
 library(joinet)
 library(randomForestSRC)
 
+#' Variable importance dot plot
+#'
+#' Replacement for `vip::vip(geom = "point")`: vip >= 0.5 draws with base
+#' graphics instead of returning a ggplot, so build the plot from `vip::vi()`,
+#' whose values are identical across vip versions.
+#'
+#' @param object A fitted model supported by `vip::vi()`.
+#' @param num_features Number of top features to show.
+#' @return A ggplot with the most important feature at the top.
+vip_plot <- function(object, num_features = 50) {
+  vip::vi(object) %>%
+    slice_max(Importance, n = num_features, with_ties = FALSE) %>%
+    mutate(Variable = reorder(Variable, Importance)) %>%
+    ggplot(aes(x = Importance, y = Variable)) +
+    geom_point() +
+    ylab(NULL)
+}
+
 # Nameset helper function
 nameset_default <- function(input){
   file_path_sans_ext(basename(input))
@@ -948,10 +966,10 @@ fwrite(sums_marked, one_csv)
     verbose = FALSE,
   )
   
-  p3 <- vip::vip(rf_impurity, geom="point", num_features = 50, bar = FALSE) + 
-    ggtitle("Random Forest - Impurity") + geom_vline(xintercept=20)
-  p4 <- vip::vip(rf_permutation, geom="point", num_features = 50, bar = FALSE) +
-    ggtitle("Random Forest - Permutation") + geom_vline(xintercept=20)
+  p3 <- vip_plot(rf_impurity) + 
+    ggtitle("Random Forest - Impurity") + geom_hline(yintercept = 20)
+  p4 <- vip_plot(rf_permutation) +
+    ggtitle("Random Forest - Permutation") + geom_hline(yintercept = 20)
   
   # gridExtra::grid.arrange(p1, p2, nrow = 1)
   
@@ -1042,9 +1060,9 @@ covar_variants <- list(
   
   # ---- VIP plots for each variant ----
   for (res in results) {
-    p <- vip::vip(res$fit, geom="point", num_features=50, bar=FALSE) +
+    p <- vip_plot(res$fit) +
       ggtitle(sprintf("VIP: %s | %s", outcome, res$tag)) +
-      geom_vline(xintercept=20)
+      geom_hline(yintercept = 20)
     print(p)  # show in the viewer
     ggsave(file.path("prediction_model", "vip plots", sprintf("vip_%s_%s.png", outcome, res$tag)),
            p, width=7, height=5, dpi=300)

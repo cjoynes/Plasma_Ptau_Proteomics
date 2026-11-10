@@ -588,7 +588,7 @@ a[, padj := p.adjust(pval, method = "fdr")]
 a[, pbonf := p.adjust(pval, method = "bonferroni")]
 
 if (ref != "") {
-  # ix is a SomaLogic probe ID (e.g. "CRYBB2.10000.28.3") -- map to gene
+  # ix is a SomaLogic probe ID (e.g. "CRYBB2.10000.28.3" or "seq.10000.28") -- map to gene
   # symbols via the probe->symbol reference key, exploding pipe-joined
   # multi-gene "complex" probes into one row per constituent gene
   b <- fread(ref)
@@ -605,6 +605,12 @@ if (ref != "") {
     by = c(names(b)[!names(b) %in% mycol]),
     .SDcols = mycol
   ]
+
+  # SeqId-named probes ("seq.10000.28") need the key in the same form
+  # (CRYBB2.10000.28.3 -> seq.10000.28)
+  if (all(startsWith(a$ix, "seq."))) {
+    b[, Key_2 := sub(".*\\.(\\d+)\\.(\\d+)\\.\\d+$", "seq.\\1.\\2", Key_2)]
+  }
   c <- merge(a, b, by.x = "ix", by.y = "Key_2")
 
   # clean up (total set of human protein probes)

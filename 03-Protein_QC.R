@@ -591,6 +591,12 @@ b <- b[, lapply(.SD, \(x) unlist(tstrsplit(x, "\\|"))),
   by = c(names(b)[!names(b) %in% mycol]), 
   .SDcols = mycol
 ]
+
+# replication cohort probes are SomaScan SeqIds ("seq.10000.28"), so key the
+# reference the same way (SYMBOL.10000.28.3 -> seq.10000.28)
+if (all(startsWith(a$ix, "seq."))) {
+  b[, Key_2 := sub(".*\\.(\\d+)\\.(\\d+)\\.\\d+$", "seq.\\1.\\2", Key_2)]
+}
 c <- merge(a, b, by.x = "ix", by.y = "Key_2")
 
 # clean up (total set of human protein probes)
