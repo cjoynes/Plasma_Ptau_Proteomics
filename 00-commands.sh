@@ -881,4 +881,70 @@ parallel -j 1 Rscript 02-linreg_lme4qtl.R \
 
 
 
+###################### External cohort prot predictions #######################
+
+# First steps 01, 02 run locally
+
+# 13-sample_QC_prediction.R --------------------------------
+# module names to be tested (all R2 > 0.25)
+names=(
+  "Merged.M13"
+  "Merged.M8"
+  "Merged.M27"
+  "Merged.M5"
+  "Merged.M2"
+  "Merged.M29"
+  "Merged.M1"
+  "Merged.M32"
+  "Merged.M15"
+  "Merged.M18"
+  "Merged.M21"
+  "Merged.M14"
+  "Merged.M4"
+)
+
+# prediction or not
+pred=("" ".pred")
+# pred=("")
+
+
+# 03-Protein_QC.R ------------------------------------------
+# Rscript 03-Protein_QC.R \
+  # -i "WSS_predict/Merged.M3.pred/dataProt_SS-205063.follow-up.Merged.M3.pred.lme4qtl.csv.gz"  \
+  # -o "WSS_predict/Merged.M3.pred" \
+  # -r "2024-08-30_Somalogic_reference_Key.txt" \
+  # -n "dataProt_SS-205063.follow-up.Merged.M3.pred"
+  # -p "cohens_d"
+
+ln -s "/mnt/box/Robert Butler's Externally Shareable Files/plasma_proteomics_replication_cohort" ~/rep
+rep_dir="~/rep"
+
+
+parallel -j 1 Rscript 03-Protein_QC.R \
+  -i "${rep_dir}/WSS_predict/{1}{2}/dataProt_replication.{1}{2}.linreg_glm.csv.gz" \
+  -o "${rep_dir}/WSS_predict/{1}{2}" \
+  -r "2024-08-30_Somalogic_reference_Key.txt" \
+  -n "dataProt_replication.{1}{2}" \
+  ::: "${names[@]}" \
+  ::: "${pred[@]}"
+
+# 06-TREAT-AD_GSEA.R ---------------------------------------
+# be sure to have a functioning synapse client
+# Rscript 06-TREAT-AD_GSEA.R \
+  # -i "WSS_predict/Merged.M3/dataProt_SS-205063.follow-up.Merged.M3.csv"  \
+  # -o "WSS_predict/Merged.M3" \
+  # -n "dataProt_SS-205063.follow-up.Merged.M3" \
+  # -p "cohens_d"
+
+# conda activate synpase
+parallel -j 1 Rscript 06-TREAT-AD_GSEA.R   \
+  -i "${rep_dir}/WSS_predict/{1}{2}/dataProt_replication.{1}{2}.csv"  \
+  -o "${rep_dir}/WSS_predict/{1}{2}" \
+  -n "dataProt_replication.{1}{2}"  \
+  ::: "${names[@]}" \
+  ::: "${pred[@]}"
+
+
+
+
 

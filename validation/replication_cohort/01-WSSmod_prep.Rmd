@@ -9,6 +9,7 @@ params:
   probe_symbol_key_path: "soma_probe_to_symbol_key.csv"
   normalize_proteomics: TRUE
   biomarker_path: "data/biomarkers.csv"
+  self_normalize_biomarkers: "PlasmaAB142P,PlasmaAB140P,PlasmaABRatio,PlasmapTau217,PlasmaGFAP,PlasmaNfL,PlasmapTau217_AB42Ratio"
   clinical_path: "data/cognition.csv"
   output_dir: "."
 ---
@@ -63,6 +64,14 @@ Edit the `params` block at the top of this Rmd (or pass them via
   normalized) core plasma biomarkers: `PlasmaPTau181`, `PlasmaAB142P`,
   `PlasmaAB140P`, `PlasmaABRatio`, `PlasmapTau217`,
   `PlasmapTau217_AB42Ratio`, `PlasmaGFAP`, `PlasmaNfL`.
+- **`self_normalize_biomarkers`** — comma-separated biomarker names to
+  rank-normalize within your own cohort instead of projecting onto the
+  bundled reference (see Step 3). List the ones measured on a different
+  platform than the reference, whose raw values are on a different scale
+  (the reference used Lumipulse for pTau217, GFAP and NfL; Simoa/Quanterix
+  values are about 2.5x higher for pTau217 and GFAP, but on the same scale
+  for NfL). The default covers pTau217, GFAP and the pTau217/AB42 ratio.
+  Use `""` to project every biomarker.
 - **`clinical_path`** — CSV, one row per sample. Columns: `SampleID`,
   `Age`, `Gender`, `CognitiveScore` (MoCA or equivalent, continuous), and
   `Diagnosis_bin` (0 = control, 1 = case/impaired), plus any other
@@ -159,8 +168,34 @@ raw_biomarkers <- biomarker_dt[, .(
 # method = "project" (default) is safe for any cohort size, including a
 # single new patient -- it scores each value against the bundled
 # baseline reference distribution rather than the collaborator's own
-# cohort, avoiding leakage/re-fitting concerns
+# cohort, avoiding leakage/re-fitting concerns. It assumes your assay is on
+# the same scale as the reference, though: a platform with a different scale
+# (e.g. Simoa vs Lumipulse pTau217/GFAP) lands at the wrong quantiles, so
+# those biomarkers are rank-normalized within your cohort instead
+# (method = "self"), which removes any monotone platform difference.
 normalized <- WSSmod::normalize_wss_biomarkers(raw_biomarkers, method = "project")
+
+self_cols <- trimws(strsplit(params$self_normalize_biomarkers, ",")[[1]])
+self_cols <- self_cols[self_cols != ""]
+if (length(self_cols) > 0) {
+  stopifnot(
+    "self_normalize_biomarkers must be biomarker column names" =
+      all(self_cols %in% names(raw_biomarkers))
+  )
+  normalized[self_cols] <- WSSmod::normalize_wss_biomarkers(
+    raw_biomarkers[, ..self_cols], method = "self"
+  )
+}
+
+# sanity check: with project, a well-matched assay gives mean ~0 and SD ~1
+# (shifted a little by cohort age/sex); a mean near +/-1 or more means a
+# platform offset, so move that biomarker to self_normalize_biomarkers
+norm_check <- data.frame(
+  method = ifelse(names(normalized) %in% self_cols, "self", "project"),
+  mean = round(sapply(normalized, mean, na.rm = TRUE), 2),
+  sd = round(sapply(normalized, sd, na.rm = TRUE), 2)
+)
+print(norm_check)
 
 newdata <- cbind(
   Age = biomarker_dt$Age,

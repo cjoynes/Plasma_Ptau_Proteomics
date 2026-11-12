@@ -21,7 +21,9 @@ from the full proteomic panel?
    `Gender` (1 = male, 0 = not male), and the 8 raw core plasma
    biomarkers (`PlasmaPTau181`, `PlasmaAB142P`, `PlasmaAB140P`,
    `PlasmaABRatio`, `PlasmapTau217`, `PlasmapTau217_AB42Ratio`,
-   `PlasmaGFAP`, `PlasmaNfL`).
+   `PlasmaGFAP`, `PlasmaNfL`). Note which of these were measured on a
+   different platform than the reference (Lumipulse for pTau217, GFAP and
+   NfL); see `self_normalize_biomarkers` in `01-WSSmod_prep.Rmd`.
 3. **Clinical data** (CSV) — one row per sample: `SampleID`, `Age`,
    `Gender`, `CognitiveScore` (MoCA or equivalent), `Diagnosis_bin`
    (0 = control, 1 = case), plus any other demographic/technical
@@ -72,7 +74,16 @@ You'll also need `data.table`, `optparse`, `tools`, `stringr`, `tictoc`,
    median r = 0.99) and predicted WSS scores
    (`WSSmod::normalize_wss_biomarkers` + `WSSmod::predict_WSS`), merges
    everything, and writes the **raw, un-QC'd** intermediate file
-   `dataProt_replication.csv.gz`.
+   `dataProt_replication.csv.gz`. Biomarkers are projected onto the bundled
+   reference distribution, except those listed in `self_normalize_biomarkers`
+   (default: pTau217, GFAP and the pTau217/AB42 ratio), which are
+   rank-normalized within your cohort because Simoa/Quanterix values differ
+   in scale from the Lumipulse reference (about 2.5x for pTau217 and GFAP;
+   NfL is on the same scale, so it is projected). Check the printed mean/SD
+   table: a projected biomarker with a mean near +/-1 or more has a platform
+   offset and belongs in `self_normalize_biomarkers`. On the internal cohort
+   with Simoa values substituted, this removed the bias from projecting
+   (predicted WSS bias +0.057 to -0.002).
 2. **`02-sample_QC_prediction.R`** — run this **first** for each module/clin
    you plan to test (each of the 12 modules for the "prot
    predictions" section; `CognitiveScore` and `Diagnosis_bin`, actual and
