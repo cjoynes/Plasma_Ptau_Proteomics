@@ -4,12 +4,12 @@ author: "Robert B Butler III"
 date: "`r Sys.Date()`"
 output: html_document
 params:
-  proteomics_path: "your_proteomics_matrix.csv"
+  proteomics_path: "data/proteomics.csv"
   map_probes_to_symbols: TRUE
   probe_symbol_key_path: "soma_probe_to_symbol_key.csv"
   normalize_proteomics: TRUE
-  biomarker_path: "your_biomarker_data.csv"
-  clinical_path: "your_clinical_data.csv"
+  biomarker_path: "data/biomarkers.csv"
+  clinical_path: "data/cognition.csv"
   output_dir: "."
 ---
 
